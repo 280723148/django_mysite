@@ -1,0 +1,13 @@
+*.egg*
+*.mo
+*.pot
+*.pyc
+*.sw?
+*.sqlite3
+*.lock
+.environment_version
+.selenium_log
+.coverage*
+.noseids
+.DS_STORE
+.DS_Store
