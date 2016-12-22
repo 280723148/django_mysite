@@ -1,14 +1,18 @@
+入门教程：Part 1：请求和响应 | Part 2：模型和admin站点 | Part 3：视图和模板 | Part 4：表单和泛型 | Part 5：测试 | Part 6：静态文件 | Part 7：自定制admin站点
+
 sudo pip install Django
 #查看版本信息
 python -c "import django; print(django.get_version())"
 python -m django --version
+#查看安装路径
+python -c "import sys;sys.path = sys.path[1:]; import django; print(django.__path__)"
 #开始一个项目
 django-admin startproject mysite
 python manage.py runserver 0.0.0.0:8000 #让其他电脑可以链接开发服务器并指定端口
     mysite/
         manage.py
         mysite/
-            __init__.py
+            __init__.p
             settings.py
             urls.py
             wsgi.py 
@@ -19,3 +23,300 @@ python manage.py runserver 0.0.0.0:8000 #让其他电脑可以链接开发服务
     mysite/settings.py：该Django 项目的设置/配置。Django 设置 将告诉你这些设置如何工作。
     mysite/urls.py：该Django项目的URL声明；你的Django站点的“目录”。 你可以在URL 转发器 中阅读到关于URL的更多内容。
     mysite/wsgi.py：用于你的项目的与WSGI兼容的Web服务器入口。 更多细节请参见如何利用WSGI进行部署。
+
+编辑polls/models.py
+    from django.db import models
+
+    class Question(models.Model):
+        question_text = models.CharField(max_length=200)
+        pub_date = models.DateTimeField('date published')
+        
+    class Choice(models.Model):
+        question = models.ForeignKey(Question, on_delete=models.CASCADE)
+        choice_text = models.CharField(max_length=200)
+        votes = models.IntegerField(default=0)
+
+编辑mysite/settings.py
+    INSTALLED_APPS = [
+    'polls.apps.PollsConfig',  #主要增加这个1.8 版本(写polls就行)跟1.10版本不一样
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    ]
+python manage.py makemigrations polls
+#你会看到类似下面的提示：
+    Migrations for 'polls':
+    polls/migrations/0001_initial.py:
+        - Create model Choice
+        - Create model Question
+        - Add field question to choice
+#这时候回生成模型文件是polls/migrations/0001_initial.py文件，
+#你可以打开它看看，里面保存的都是可编辑的内容，方便你随时手动修改
+
+#执行以下内容将会执行相应的sql会在cmd中显示操作的语句，不同sql语句不同，这些 sql 
+#命令并比较在你的数据库中实际运行，它只是在屏幕上显示出来，以便让你了解 Django 真正执行的是什么
+python manage.py sqlmigrate polls 0001
+如sqlite就有：
+这些 sql 命令并比较在你的数据库中实际运行，它只是在屏幕上显示出来，以便让你了解 Django 真正执行的是什么
+    D:\web\django\mysite>python manage.py sqlmigrate polls 0001
+    BEGIN;
+    --
+    -- Create model Choice
+    --
+    CREATE TABLE "polls_choice" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "c
+    hoice_text" varchar(200) NOT NULL, "votes" integer NOT NULL);
+    --
+    -- Create model Question
+    --
+    CREATE TABLE "polls_question" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "question_text" varchar(200) NOT NULL, "pub_date" datetime NOT NULL);
+    --
+    -- Add field question to choice
+    --
+    ALTER TABLE "polls_choice" RENAME TO "polls_choice__old";
+    CREATE TABLE "polls_choice" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "c
+    hoice_text" varchar(200) NOT NULL, "votes" integer NOT NULL, "question_id" integ
+    er NOT NULL REFERENCES "polls_question" ("id"));
+    INSERT INTO "polls_choice" ("choice_text", "votes", "id", "question_id") SELECT
+    "choice_text", "votes", "id", NULL FROM "polls_choice__old";
+    DROP TABLE "polls_choice__old";
+    CREATE INDEX "polls_choice_7aa0f6ee" ON "polls_choice" ("question_id");
+    COMMIT;
+
+#如果有兴趣，你还可以运行以下它会检查你的项目中的模型是否存在问题，而不用执行迁移或者接触数据库
+python manage.py check；
+
+#现在，再次运行migrate以在你的数据库中创建模型所对应的表：
+python manage.py migrate   #这个才是执行操作的
+    Operations to perform:
+      Synchronize unmigrated apps: staticfiles, messages
+      Apply all migrations: admin, contenttypes, polls, auth, sessions
+    Synchronizing apps without migrations:
+      Creating tables...
+        Running deferred SQL...
+      Installing custom SQL...
+    Running migrations:
+      Rendering model states... DONE
+      Applying <migration name>... OK
+
+#migrate命令对所有还未实施的迁移记录进行操作，本质上就是将你对模型的修改体现到数据库中具体的表上面。
+#Django通过一张叫做django_migrations的表，记录并跟踪已经实施的migrate动作，
+#通过对比获得哪些migrations尚未提交。
+#migrations的功能非常强大，允许你随时修改你的模型，而不需要删除或者新建你的数据库或数据表，
+#在不丢失数据的同时，实时动态更新数据库。我们将在后面的章节对此进行深入的阐述，
+
+#我们只需要记住修改模型时的操作分三步：
+#在models.py中修改模型
+#运行python manage.py makemigrations为改动创建迁移记录
+#运行python manage.py migrate，将迁移同步到数据库，落实修改动作。
+
+
+#让我们进入python交互环境，学习使用Django提供的数据库访问API。要进入python的shell，请输入命令：
+python manage.py shell
+#进入shell后可以操作：
+    >>> from polls.models import Question, Choice # 导入我们写的模型类
+    # 现在系统内还没有questions
+    >>> Question.objects.all()
+    <QuerySet []>
+    
+    # 创建一个新的question
+    # Django推荐使用timezone.now()代替python内置的datetime.datetime.now()
+    from django.utils import timezone
+    >>> q = Question(question_text="What's new?", pub_date=timezone.now())
+    
+    # 你必须显式的调用save（）方法，才能将对象保存到数据库内
+    >>> q.save()
+    
+    # 默认情况，你会自动获得一个自增的名为id的主键
+    >>> q.id
+    1
+    
+    # 通过python的属性调用方式，访问模型字段的值
+    >>> q.question_text
+    "What's new?"
+    >>> q.pub_date
+    datetime.datetime(2012, 2, 26, 13, 0, 0, 775217, tzinfo=<UTC>)
+    
+    # 通过修改属性来修改字段的值，然后显式的调用save方法进行保存。
+    >>> q.question_text = "What's up?"
+    >>> q.save()
+    
+    # objects.all() 用于查询数据库内的所有questions
+    >>> Question.objects.all()
+    <QuerySet [<Question: Question object>]>
+
+
+
+#Django admin站点介绍
+#创建一个admin用户，首先，通过下面的命令，创建一个可以登录admin站点的用户：
+python manage.py createsuperuser
+    输入用户名：
+    Username: admin
+    输入邮箱地址：
+    Email address: admin@example.com
+    输入密码：
+    Password: **********
+    Password (again): *********
+    Superuser created successfully.
+    注意：Django1.10版本后，超级用户的密码强制要求具备一定的复杂性，不能再偷懒了。
+#服务器启动后，在浏览器访问http://127.0.0.1:8000/admin/。你就能看到admin的登陆界面了
+
+
+
+
+
+
+
+
+
+
+
+
+Part 3：视图和模板
+#修改urlpatterns
+    mysite/urls.py
+    from django.conf.urls import include, url
+    from django.contrib import admin
+
+    urlpatterns = [
+        url(r'^admin/', admin.site.urls),
+        url(r'^polls/', include('polls.urls')),
+    ]
+#url()函数具有四个参数：两个必需的regex和 view，以及两个可选的kwargs和name。
+    url() 参数：regex
+
+    术语“regex”是“regular expression(正则表达式)”的常用的一个缩写，是一种用来匹配字符串中模式的语法，在这里是URL模式。 Django从第一个正则表达式开始，依次将请求的URL与每个正则表达式进行匹配，直到找到匹配的那个为止。
+
+    请注意，这些正则表达式不会检索URL中GET和POST的参数以及域名。 例如，对于http://www.example.com/myapp/请求，URLconf 将查找myapp/。对于http://www.example.com/myapp/?page=3请求，URLconf 也将查找myapp/。
+
+    最后，性能方面的一个注意点：这些正则表达式会在URLconf模块第一次载入的时候被编译。 它们超级快（只要这些正则表达式不像上面提醒的那样过于复杂）。
+
+    url() 参数：view
+
+    当Django找到一个匹配的正则表达式时，它就会调用view参数指定的视图函数，并将HttpRequest对象作为第一个参数，从正则表达式中“捕获”的其他值作为其他参数，传入到该视图函数中。如果正则表达式使用简单的捕获方式，值将作为位置参数传递； 如果使用命名的捕获方式，值将作为关键字参数传递。一会儿，我们将给出一个例子。
+
+    url() 参数：kwargs
+
+    任何关键字参数都可以以字典形式传递给目标视图。 我们在这个教程里不用Django的这个功能。
+
+    url() 参数：name
+
+    命名你的URL。 这样就可以在Django的其它地方尤其是模板中，通过名称来明确地引用这个URL。 这个强大的特性可以使你仅仅修改一个文件就可以改变全局的URL模式。
+
+#编写更多的视图
+    现在让我们给polls/views.py添加一些更多的视图。这些视图和之前的略有不同，因为它们另带了一个参数：
+    polls/views.py
+    def detail(request, question_id):
+        return HttpResponse("You're looking at question %s." % question_id)
+
+    def results(request, question_id):
+        response = "You're looking at the results of question %s."
+        return HttpResponse(response % question_id)
+
+    def vote(request, question_id):
+        return HttpResponse("You're voting on question %s." % question_id)
+    通过下面的url() 调用将这些新的视图和polls.urls模块关联起来：
+
+    polls/urls.py
+    from django.conf.urls import url
+    from . import views
+    urlpatterns = [
+        # ex: /polls/
+        url(r'^$', views.index, name='index'),
+        # ex: /polls/5/
+        url(r'^(?P<question_id>[0-9]+)/$', views.detail, name='detail'),
+        # ex: /polls/5/results/
+        url(r'^(?P<question_id>[0-9]+)/results/$', views.results, name='results'),
+        # ex: /polls/5/vote/
+        url(r'^(?P<question_id>[0-9]+)/vote/$', views.vote, name='vote'),
+    ]
+    在你的浏览器中访问“/polls/34/”。它将运行detail()方法并显示你在URL中提供的ID。 再试一下“/polls/34/results/”和“/polls/34/vote/” —— 它们将显示出对应的结果界面和投票界面。
+
+#以下是如果一个使用者访问“/polls/34/”，系统中将会发生的事：
+    Django发现匹配到了正则表达式'^polls/'
+
+    然后，Django将去掉匹配到的文本（"polls/")）并将剩下的文本 —— "34/" —— 发送给‘polls.urls’ URLconf 做进一步处理，这时将匹配r'^(?P<question_id>[0-9]+)/$'并导致像下面这样调用detail()视图：
+
+    detail(request=<HttpRequest object>, question_id='34')
+    question_id='34'部分来自(?P<question_id>[0-9]+)。# Leave the rest of the views (detail, results, vote) unchanged?P<question_id> 定义一个名字，它将用于标识匹配的模式；[0-9]+是匹配一串数字的正则表达式。
+#httpresponse也可改成数据库查询的返回值
+    polls/views.py
+    from django.http import HttpResponse
+    from .models import Question
+    def index(request):
+        latest_question_list = Question.objects.order_by('-pub_date')[:5]
+        output = ', '.join([p.question_text for p in latest_question_list])
+        return HttpResponse(output)
+
+
+#这里有一个问题：页面的设计被硬编码在视图中。 如果你想更改页面的外观，就得编辑这段Python代码。 
+#因此，让我们使用Django的模板系统，通过创建一个视图能够调用的模板，将页面的设计从Python中分离出来。
+#首先，在你的polls目录下创建一个叫做 templates的目录。Django将在这里查找模板
+
+#默认的设置文件settings.py配置了一个DjangoTemplates后端，
+#其中将APP_DIRS选项设置为True。按照惯例，DjangoTemplates在 INSTALLED_APPS所包含的每个应用的目录下
+#查找名为"templates"子目录。因此即使我们不需要去修改DIRS,Django也可以找到应用的模版。
+
+#创建polls/templates/polls/index.html
+#这里为什么polls/templates/下还有polls这个目录要创建？我们可以直接将我们的模板放在polls/templates
+#中（而不用创建另外一个polls子目录），但实际上这是个坏主意。Django将选择它找到的名字匹配的
+#第一个模板文件，如果你在不同 的应用有相同名字的模板文件，Django将不能区分它们。
+#我们需要将Django指向正确的模板，最简单的方式是使用命名空间。
+#具体实现方式是，将这些模板文件放在以应用的名字来命名的另一个目录下
+    polls/templates/polls/index.html
+    {% if latest_question_list %}
+        <ul>
+        {% for question in latest_question_list %}
+            <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No polls are available.</p>
+    {% endif %}
+#修改polls/views.py中的index视图来使用模板：
+    from django.http import HttpResponse
+    from django.template import RequestContext, loader
+    def index(request):
+        latest_question_list = Question.objects.order_by('-pub_date')[:5]
+        template = loader.get_template('polls/index.html')
+        context = RequestContext(request, {
+            'latest_question_list': latest_question_list,
+        })
+        return HttpResponse(template.render(context))
+
+#还有一种方式是使用render
+    from django.shortcuts import render
+    def index(request):
+        latest_question_list = Question.objects.order_by('-pub_date')[:5]
+        context = {'latest_question_list': latest_question_list}
+        return render(request, 'polls/index.html', context)
+#一旦我们在所有的视图上都应用这个快捷函数，我们将不再需要导入 loader、RequestContext和HttpResponse 
+#render()函数将请求对象作为它的第一个参数，模板的名字作为它的第二个参数，
+#一个字典作为它可选的第三个参数。 它返回一个HttpResponse对象，含有用给定的context 渲染后的模板。
+
+#引发一个404错误
+    from django.http import Http404
+    def detail(request, question_id):
+        try:
+            question = Question.objects.get(pk=question_id)
+        except Question.DoesNotExist:
+            raise Http404("Question does not exist")
+        return render(request, 'polls/detail.html', {'question': question})
+
+
+
+Part 4：表单和泛型
+
+
+Part 5：测试
+
+
+Part 6：静态文件 
+
+
+Part 7：自定制admin站点
+
+
