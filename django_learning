@@ -24,6 +24,8 @@ python manage.py runserver 0.0.0.0:8000 #让其他电脑可以链接开发服务
     mysite/urls.py：该Django项目的URL声明；你的Django站点的“目录”。 你可以在URL 转发器 中阅读到关于URL的更多内容。
     mysite/wsgi.py：用于你的项目的与WSGI兼容的Web服务器入口。 更多细节请参见如何利用WSGI进行部署。
 
+#创建一个app python manage.py startapp app-name
+python manage.py startapp polls
 编辑polls/models.py
     from django.db import models
 
@@ -315,8 +317,27 @@ Part 5：测试
 
 
 Part 6：静态文件 
+#将下面的代码放入样式表中 (polls/static/polls/style.css)：#这里同样存在命名空间的问题所以static目录下又有一个polls目录
+    polls/static/polls/style.css
+    li a {
+        color: green;
+    }
+#下一步，在polls/templates/polls/index.html的顶端添加如下内容 ：
 
+    polls/templates/polls/index.html
+    {% load staticfiles %}
 
+    <link rel="stylesheet" type="text/css" href="{% static 'polls/style.css' %}" />
+    {% load staticfiles %} 
+    从staticfiles模板库加载{% static %} 模板标签。{% static %}模板标签会生成静态文件的绝对URL。
+
+#存放polls/static/polls/images/background.gif。修改你的css样式文件：
+    polls/static/polls/style.css
+
+    body {
+        background: white url("images/background.gif") no-repeat right bottom;
+    }
+    
 Part 7：自定制admin站点
 
 
